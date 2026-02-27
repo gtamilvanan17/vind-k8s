@@ -413,6 +413,11 @@ create_clusters() {
     done
     
     success "Cluster creation completed!"
+
+    # show summary information for created clusters
+    info "\n===== Cluster summary ====="
+    list_clusters
+    info "===========================\n"
 }
 
 list_clusters() {
@@ -689,8 +694,13 @@ EOF
             warn "kubectl get service -n argocd argocd-server"
         fi
         
-        # Get default password
-        local password=$(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d)
+        # Get default password (Helm chart may use argocd-secret or argocd-initial-admin-secret)
+        local password=""
+        if kubectl get secret -n argocd argocd-secret &>/dev/null; then
+            password=$(kubectl get secret -n argocd argocd-secret -o jsonpath='{.data.admin\.password}' 2>/dev/null | base64 -d)
+        elif kubectl get secret -n argocd argocd-initial-admin-secret &>/dev/null; then
+            password=$(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d)
+        fi
         info "Default username: admin"
         info "Default password: ${password}"
     else
@@ -733,9 +743,61 @@ deploy_applications() {
         [ "$deploy_loadbalancer" = true ] && deploy_sample_app_loadbalancer "$cluster_name"
         [ "$deploy_argocd" = true ] && install_argocd "$cluster_name"
     fi
+
+    # print summary information after deployments
+    print_deployment_summary "$cluster_name"
 }
 
 ################################################################################
+# Summary functions
+
+print_deployment_summary() {
+    local cluster_name=$1
+    info "\n===== Deployment summary for cluster '${cluster_name}' ====="
+
+    # NodePort service info
+    if kubectl get svc -n sample-apps sample-app-nodeport-service &>/dev/null; then
+        local port=$(kubectl get svc -n sample-apps sample-app-nodeport-service -o jsonpath='{.spec.ports[0].nodePort}')
+        info "NodePort service is available at port ${port} (http://localhost:${port})"
+    fi
+
+    # LoadBalancer app info
+    if kubectl get svc -n sample-apps sample-app-loadbalancer-service &>/dev/null; then
+        local lbip=$(kubectl get svc -n sample-apps sample-app-loadbalancer-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+        local lbhost=$(kubectl get svc -n sample-apps sample-app-loadbalancer-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+        if [ -n "$lbip" ]; then
+            info "LoadBalancer app accessible at http://${lbip}"
+        elif [ -n "$lbhost" ]; then
+            info "LoadBalancer app accessible at http://${lbhost}"
+        else
+            info "LoadBalancer service created, waiting for external IP/hostname assignment."
+        fi
+    fi
+
+    # ArgoCD info
+    if kubectl get svc -n argocd argocd-server &>/dev/null; then
+        local alb_ip=$(kubectl get svc -n argocd argocd-server -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+        local alb_host=$(kubectl get svc -n argocd argocd-server -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+        if [ -n "$alb_ip" ]; then
+            info "ArgoCD UI: http://${alb_ip}  (user: admin)"
+        elif [ -n "$alb_host" ]; then
+            info "ArgoCD UI: http://${alb_host}  (user: admin)"
+        else
+            info "ArgoCD service created, waiting for LoadBalancer IP/hostname."
+        fi
+        # read password from whichever secret exists
+        local password=""
+        if kubectl get secret -n argocd argocd-secret &>/dev/null; then
+            password=$(kubectl get secret -n argocd argocd-secret -o jsonpath='{.data.admin\.password}' 2>/dev/null | base64 -d)
+        elif kubectl get secret -n argocd argocd-initial-admin-secret &>/dev/null; then
+            password=$(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d)
+        fi
+        info "ArgoCD default password: ${password}"
+    fi
+
+    info "========================================================\n"
+}
+
 # Main Function
 ################################################################################
 
