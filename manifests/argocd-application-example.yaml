@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    app: argocd
+---
+# Example ArgoCD Application (for reference)
+# This is deployed automatically via Helm in the setup script
+# You can use this as a template for your applications
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yourusername/your-repo.git
+    targetRevision: HEAD
+    path: kubernetes/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sample-apps
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

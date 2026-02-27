@@ -1,0 +1,44 @@
+# Build artifacts and output
+vind-setup.log
+*.out
+*.err
+.DS_Store
+
+# Kubernetes
+kubeconfig
+kubeconfig.bak
+.kube/
+
+# Docker
+.docker/
+
+# Temporary files
+*.tmp
+*.temp
+*~
+*.swp
+*.swo
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.sublime-workspace
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS specific
+Thumbs.db
+
+# Project specific
+.vind/
+clusters/
+backups/
+
+# Sensitive data
+credentials.txt
+secrets.yaml
+.ssh/
